@@ -7,7 +7,7 @@ const hasId = !!(CFG.clientId && !/PASTE|YOUR/i.test(CFG.clientId));
 const DEMO = QS.has('demo') || window.POOLED_FORCE_DEMO === true || !hasId;
 const SCOPE = 'openid email https://www.googleapis.com/auth/drive.file';
 const MB = 1048576, GB = 1073741824, DAY = 86400000;
-const BUILD = '2026-11-15 d';
+const BUILD = '2026-11-15 e';
 
 const $ = (s, r) => (r || document).querySelector(s);
 const $$ = (s, r) => [...(r || document).querySelectorAll(s)];

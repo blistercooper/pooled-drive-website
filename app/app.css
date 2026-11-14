@@ -327,3 +327,6 @@ main{min-width:0}
   .fchip{display:none}
   .onb-low{grid-template-columns:1fr}.btn.lg{padding:14px 22px}
 }
+
+.side-foot a{color:var(--a1);font-weight:600}
+.side-foot a:hover{text-decoration:underline}
