@@ -39,10 +39,20 @@ async function refreshAccount(a) {
   if (!B.has(a)) { a.ok = false; return; }
   try {
     const [q, files] = await Promise.all([B.quota(a), B.list(a)]);
-    a.limit = q.limit; a.usage = q.usage; a.ok = true; a.err = null;
+    a.limit = q.limit; a.usage = q.usage; a.ok = true; a.err = null; a.fromApp = false;
+    await pullAppAccounts(a);
     S.files = S.files.filter(f => f.acc !== a.email).concat(files);
     const c = store.get('pd.quota', {}); c[a.email] = { limit: q.limit, usage: q.usage }; store.set('pd.quota', c);
   } catch (e) { a.err = e.message; }
+}
+const manDone = new Set();
+async function pullAppAccounts(a) {
+  if (manDone.has(a.email)) return; manDone.add(a.email);
+  try {
+    let n = 0;
+    (await B.manifest(a)).forEach(e => { if (e && e.includes('@') && !byEmail(e)) { S.accounts.push({ email: e, limit: 15 * GB, usage: 0, ok: false, fromApp: true }); n++; } });
+    if (n) { persistAccounts(); toast('Found ' + n + ' more account' + (n > 1 ? 's' : '') + ' from your Android app'); }
+  } catch (e) { /* the list is optional: sign-in still works without it */ }
 }
 let refreshing = false;
 async function refreshAll(silent) {
@@ -72,7 +82,7 @@ function removeAccount(email) {
 
 /* ---------- derived numbers ---------- */
 function totals() {
-  const accs = S.accounts, total = accs.reduce((s, a) => s + a.limit, 0), used = accs.reduce((s, a) => s + a.usage, 0);
+  const accs = S.accounts.filter(a => !a.fromApp), total = accs.reduce((s, a) => s + a.limit, 0), used = accs.reduce((s, a) => s + a.usage, 0);
   const safe = live().reduce((s, a) => s + room(a), 0);
   const recent = S.files.filter(f => f.created > Date.now() - 14 * DAY).reduce((s, f) => s + f.size, 0) / 14;
   const days = recent > 512 * 1024 ? Math.round(safe / recent) : null;
@@ -198,7 +208,7 @@ const frow = f => { const sel = S.sel.has(f.id); return '<div class="fr' + (sel 
 const fgrid = f => { const sel = S.sel.has(f.id); return '<div class="fg' + (sel ? ' sel' : '') + '" data-a="row" data-id="' + f.id + '"><span class="ck" data-a="ck" data-id="' + f.id + '">' + ic('check') + '</span><div class="big-i">' + ic(kind(f)) + '</div><div class="nm">' + esc(f.name) + '</div><div class="sb">' + esc(f.acc) + '</div><div style="margin-top:8px"><span class="tag">' + fmt(f.size) + '</span></div></div>'; };
 const mini = f => '<div class="row" data-a="open" data-id="' + f.id + '" style="cursor:pointer"><div class="av">' + ic(kind(f)) + '</div><div class="grow"><div class="nm">' + esc(f.name) + '</div><div class="sb">' + esc(f.acc) + '</div></div><span class="tag">' + fmt(f.size) + '</span></div>';
 const ringSvg = a => donut(a);
-const banner = () => need().length ? '<div class="banner">' + ic('refresh') + '<span class="grow"><b>' + need().length + ' account' + (need().length > 1 ? 's' : '') + ' need to reconnect.</b> Google sign-ins last about an hour in a browser.</span><button class="btn p sm" data-a="reconnectall">Reconnect</button></div>' : '';
+const banner = () => { const n = need(), fresh = n.filter(a => a.fromApp).length; return n.length ? '<div class="banner">' + ic('refresh') + '<span class="grow"><b>' + (fresh ? n.length + ' account' + (n.length > 1 ? 's' : '') + (fresh === n.length ? ' from your Android app ' + (n.length > 1 ? 'are' : 'is') + ' ready to connect.' : ': ' + fresh + ' new from your Android app, the rest need to reconnect.') : n.length + ' account' + (n.length > 1 ? 's' : '') + ' need to reconnect.') + '</b> ' + (fresh ? 'One tap each. Google usually approves instantly.' : 'Google sign-ins last about an hour in a browser.') + '</span><button class="btn p sm" data-a="reconnectall">' + (fresh ? 'Connect' : 'Reconnect') + '</button></div>' : ''; };
 const demoBanner = () => DEMO ? '<div class="banner">' + ic('shield') + '<span class="grow"><b>Demo mode.</b> You are looking at sample data. Nothing here touches Google. Try it with <button class="chip' + (S.accounts.length === 4 ? ' on' : '') + '" data-a="demon" data-id="4">4</button><button class="chip' + (S.accounts.length === 12 ? ' on' : '') + '" data-a="demon" data-id="12">12</button><button class="chip' + (S.accounts.length === 20 ? ' on' : '') + '" data-a="demon" data-id="20">20</button> accounts.' + (hasId ? '' : ' To connect your real accounts, add your Web client ID in <code>config.js</code> (see the setup guide).') + '</span></div>' : '';
 
 function dash() {
@@ -209,7 +219,7 @@ function dash() {
   const row = (l, e) => '<div style="margin-bottom:10px"><div class="tiny muted">' + l + '</div>' + (e ? '<div style="font-weight:650;color:var(--a1)">' + esc(e) + ' <span class="muted small" style="font-weight:500">· ' + gb1(room(byEmail(e))) + ' GB room</span></div>' : '<div style="color:var(--warn);font-weight:600">No drive has room. Add one or raise the limit.</div>') + '</div>';
   const hogs = [...S.files].sort((a, b) => b.size - a.size).slice(0, 5), recent = [...S.files].sort((a, b) => b.created - a.created).slice(0, 5);
   return demoBanner() + banner() + '<div class="card hero' + (appCard() ? '' : ' nocard') + '"><svg class="cloud" viewBox="0 0 26 24"><defs><linearGradient id="cg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--a1)"/><stop offset="1" style="stop-color:var(--a2)"/></linearGradient><clipPath id="clp"><path d="' + CLOUD + '"/></clipPath></defs><g transform="translate(1 .5)"><path d="' + CLOUD + '" style="fill:var(--bg);fill-opacity:.55;stroke:none"/><g clip-path="url(#clp)"><path id="w2" style="fill:url(#cg);fill-opacity:.35;stroke:none"/><path id="w1" style="fill:url(#cg);stroke:none"/></g><path d="' + CLOUD + '" style="stroke:url(#cg);stroke-width:1.1;fill:none"/><g id="rainU" style="stroke:var(--a1);stroke-width:.35;stroke-linecap:round"></g><g id="rainD" style="stroke:var(--a1);stroke-width:.35;stroke-linecap:round"></g></g></svg>' +
-    '<div><div class="muted small">Your pooled cloud</div><div class="big">' + fmt(T.free) + '</div><div class="muted">free of ' + fmt(T.total) + ' across ' + accs.length + ' account' + (accs.length > 1 ? 's' : '') + '</div>' +
+    '<div><div class="muted small">Your pooled cloud</div><div class="big">' + fmt(T.free) + '</div><div class="muted">free of ' + fmt(T.total) + ' across ' + accs.filter(a => !a.fromApp).length + ' account' + (accs.filter(a => !a.fromApp).length === 1 ? '' : 's') + '</div>' +
     '<div style="height:14px"></div>' +
     '<div style="color:' + (m === 'idle' ? 'var(--muted)' : 'var(--a1)') + ';font-weight:600;font-size:14px">' + status + '</div>' +
     '<span class="eq" data-a="eq">Room for ' + EQ(T.free)[S.eq % 4] + ' · tap me</span>' +
@@ -222,7 +232,7 @@ function dash() {
     '<div class="grid g2" style="margin-top:16px"><div class="card"><h2>Recent files <span class="lnk" data-a="go" data-id="files">See all</span></h2>' + (recent.map(mini).join('') || '<p class="muted small">No files yet.</p>') + '</div><div class="card"><h2>Space hogs <span class="lnk" data-a="go" data-id="files">Biggest files</span></h2>' + (hogs.map(mini).join('') || '<p class="muted small">No files yet.</p>') + '</div></div>';
 }
 function welcome() {
-  return demoBanner() + '<div class="welcome"><svg viewBox="0 0 26 24" style="width:140px;height:130px;margin:0 auto 10px;display:block"><defs><linearGradient id="wg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--a1)"/><stop offset="1" style="stop-color:var(--a2)"/></linearGradient></defs><g transform="translate(1 .5)"><path d="' + CLOUD + '" style="stroke:url(#wg);stroke-width:1.1;fill:none"/></g></svg><div class="big">Pool your drives</div><p class="muted" style="font-size:16px;line-height:1.6">Sign in with the Google accounts you own and see all their free space as one cloud. The page picks the best account for every file.</p><button class="btn p" data-a="add" style="margin-top:12px">' + ic('plus') + 'Connect a Google account</button><p class="tiny faint" style="margin-top:18px">Your files go only between this browser and Google. There is no Pooled Drive server.</p></div>';
+  return demoBanner() + '<div class="welcome"><svg viewBox="0 0 26 24" style="width:140px;height:130px;margin:0 auto 10px;display:block"><defs><linearGradient id="wg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--a1)"/><stop offset="1" style="stop-color:var(--a2)"/></linearGradient></defs><g transform="translate(1 .5)"><path d="' + CLOUD + '" style="stroke:url(#wg);stroke-width:1.1;fill:none"/></g></svg><div class="big">Pool your drives</div><p class="muted" style="font-size:16px;line-height:1.6">Sign in with the Google accounts you own and see all their free space as one cloud. The page picks the best account for every file.</p><p class="muted small" style="line-height:1.6;max-width:46ch">Start with any one account. If you already use the Android app, your other accounts appear here for one-tap connecting.</p><button class="btn p" data-a="add" style="margin-top:12px">' + ic('plus') + 'Connect a Google account</button><p class="tiny faint" style="margin-top:18px">Your files go only between this browser and Google. There is no Pooled Drive server.</p></div>';
 }
 const FILTERS = ['All', 'Videos', 'Photos', 'Docs', 'Music', 'Archives', 'Phone backups'];
 function filtered() {

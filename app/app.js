@@ -221,6 +221,13 @@ const real = (() => {
     const b = await blob(f, p => onP(p / 2));
     return upload(dest, new File([b], f.name, { type: f.mime }), p => onP(f.size / 2 + p / 2));
   }
+  async function manifest(a) {
+    const q = encodeURIComponent("appProperties has { key='pool' and value='manifest' } and trashed=false");
+    const f = (await json(a, D + '/files?q=' + q + '&fields=files(id)&orderBy=modifiedTime%20desc&pageSize=1')).files || [];
+    if (!f.length) return [];
+    const j = await (await call(a, D + '/files/' + f[0].id + '?alt=media')).json();
+    return (j.accounts || []).map(e => String(e).toLowerCase());
+  }
   const link = async f => (await json(byEmail(f.acc), D + '/files/' + f.id + '?fields=webViewLink')).webViewLink || 'https://drive.google.com/file/d/' + f.id + '/view';
   const perms = async f => ((await json(byEmail(f.acc), D + '/files/' + f.id + '/permissions?fields=permissions(id,type,role,emailAddress,displayName)')).permissions || []);
   const jp = { 'Content-Type': 'application/json' };
@@ -228,7 +235,7 @@ const real = (() => {
   const sharePerson = (f, email, role) => json(byEmail(f.acc), D + '/files/' + f.id + '/permissions?sendNotificationEmail=true&fields=id', { method: 'POST', headers: jp, body: JSON.stringify({ type: 'user', role: role, emailAddress: email }) });
   const setRole = (f, id, role) => json(byEmail(f.acc), D + '/files/' + f.id + '/permissions/' + id + '?fields=id', { method: 'PATCH', headers: jp, body: JSON.stringify({ role: role }) });
   const unshare = (f, id) => call(byEmail(f.acc), D + '/files/' + f.id + '/permissions/' + id, { method: 'DELETE' });
-  return { init, has, connect, quota, list, upload, remove, blob, copy, link, perms, shareAnyone, sharePerson, setRole, unshare, reconnect: a => connect(a.email) };
+  return { init, has, connect, manifest, quota, list, upload, remove, blob, copy, link, perms, shareAnyone, sharePerson, setRole, unshare, reconnect: a => connect(a.email) };
 })();
 
 /* ---------- backend: demo (sample data, nothing leaves the page) ---------- */
@@ -260,6 +267,7 @@ const demo = (() => {
     init: async () => {}, has: () => true,
     connect: async () => { const n = S.accounts.length + 1; return { email: 'demo.account' + n + '@gmail.com' }; },
     reconnect: async () => {},
+    manifest: async () => [],
     quota: async a => ({ limit: 15 * GB, usage: a.usage }),
     list: async a => files.filter(f => f.acc === a.email).map(f => Object.assign({}, f)),
     upload: async (a, file, onP) => { await tick(12, p => onP(p * file.size), 70); const f = { id: 'u' + (++seq), acc: a.email, name: file.name, size: file.size, mime: file.type || '', created: Date.now(), src: 'web' }; files.push(f); return Object.assign({}, f); },
