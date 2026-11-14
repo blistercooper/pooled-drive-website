@@ -1,0 +1,11 @@
+// Network first: the newest version of the site is always used when you are online,
+// and the last good copy is used when you are not. So changes show up as soon as they are published.
+const NAME = 'pooled-drive-web-v1';
+const SHELL = ['./', 'app.css', 'app.js', 'ui.js', 'config.js', 'manifest.webmanifest', 'icon-192.png'];
+self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(NAME).then(c => c.addAll(SHELL)).catch(() => {})); });
+self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== NAME).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
+self.addEventListener('fetch', e => {
+  const r = e.request, u = new URL(r.url);
+  if (r.method !== 'GET' || u.origin !== location.origin) return;     // never touch Google or font requests
+  e.respondWith(fetch(r, { cache: 'no-cache' }).then(res => { const copy = res.clone(); caches.open(NAME).then(c => c.put(r, copy)); return res; }).catch(() => caches.match(r)));
+});
