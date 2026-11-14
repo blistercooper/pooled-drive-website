@@ -7,6 +7,7 @@ const hasId = !!(CFG.clientId && !/PASTE|YOUR/i.test(CFG.clientId));
 const DEMO = QS.has('demo') || window.POOLED_FORCE_DEMO === true || !hasId;
 const SCOPE = 'openid email https://www.googleapis.com/auth/drive.file';
 const MB = 1048576, GB = 1073741824, DAY = 86400000;
+const BUILD = '2026-11-15 d';
 
 const $ = (s, r) => (r || document).querySelector(s);
 const $$ = (s, r) => [...(r || document).querySelectorAll(s)];
@@ -296,5 +297,5 @@ function applyTheme() {
   const m = $('meta[name=theme-color]'); if (m) m.content = t === 'dark' ? '#070b16' : '#f3f6ff';
 }
 
-window.PD = { S, B, DEMO, hasId, P, ic, $, $$, esc, fmt, gb1, wait, store, sess, kind, room, atLimit, live, byEmail, plan, slots, CLOUD, MB, GB, DAY, persistAccounts, applyTheme, CFG };
+window.PD = { BUILD, S, B, DEMO, hasId, P, ic, $, $$, esc, fmt, gb1, wait, store, sess, kind, room, atLimit, live, byEmail, plan, slots, CLOUD, MB, GB, DAY, persistAccounts, applyTheme, CFG };
 })();
